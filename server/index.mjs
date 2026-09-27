@@ -4,7 +4,11 @@ import express from 'express'
 const app = express()
 const port = Number(process.env.PORT || 4178)
 const host = process.env.HOST || '127.0.0.1'
-const apiKey = process.env.XIAOMI_API_KEY || ''
+const apiKey = process.env.XIAOMI_API_KEY?.trim() || ''
+const defaultApiBaseUrl = apiKey.startsWith('tp-')
+  ? 'https://token-plan-cn.xiaomimimo.com/v1'
+  : 'https://api.xiaomimimo.com/v1'
+const apiBaseUrl = (process.env.XIAOMI_BASE_URL || defaultApiBaseUrl).trim().replace(/\/+$/, '')
 const accessPassword = process.env.AI_ACCESS_PASSWORD || ''
 const sessionSecret = process.env.AI_SESSION_SECRET || ''
 const sessionLifetimeSeconds = 6 * 60 * 60
@@ -14,7 +18,7 @@ app.disable('x-powered-by')
 app.use(express.json({ limit: '8mb' }))
 
 function isConfigured() {
-  return /^sk-[A-Za-z0-9_-]{12,}$/.test(apiKey) && accessPassword.length >= 8 && sessionSecret.length >= 32
+  return /^(?:sk|tp)-[A-Za-z0-9_-]{12,}$/.test(apiKey) && accessPassword.length >= 8 && sessionSecret.length >= 32
 }
 
 function sameSecret(received, expected) {
@@ -65,7 +69,7 @@ function allowPasswordAttempt(req, res, next) {
 }
 
 async function mimoRequest(body) {
-  const response = await fetch('https://api.xiaomimimo.com/v1/chat/completions', {
+  const response = await fetch(`${apiBaseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'api-key': apiKey },
     body: JSON.stringify(body),
@@ -137,5 +141,5 @@ app.use((error, _req, res, _next) => {
 })
 
 app.listen(port, host, () => {
-  console.log(`AI API listening on ${host}:${port}; configured=${isConfigured()}`)
+  console.log(`AI API listening on ${host}:${port}; baseUrl=${apiBaseUrl}; configured=${isConfigured()}`)
 })

@@ -41,7 +41,7 @@ npm run preview
 
 家长设置里的 AI 伴学实验室支持按需使用 MiMo 普通话识别和示范朗读。朗读任务会显示 AI 入口；录音仅在点击录制并结束后发送识别，结果作为练习参考，不会代替孩子自评或自动掌握判定。离线语音和玩法仍可单独工作。
 
-服务端配置见 `server/`。在服务器 `/etc/knowledge-islands/ai.env` 设置 `XIAOMI_API_KEY`、`AI_ACCESS_PASSWORD` 和随机生成的 `AI_SESSION_SECRET`，再通过 Docker Compose 启动；`deploy/i.joysb.icu.conf` 将同域 `/api/ai/*` 请求转发给服务端。不要将真实环境文件提交到仓库。开发时可复制 `server/.env.example` 到服务器配置目录；前端只保存短期会话令牌于当前标签页的 `sessionStorage`，密钥仅由服务端读取。
+服务端配置见 `server/`。在服务器 `/etc/knowledge-islands/ai.env` 设置 `XIAOMI_BASE_URL`、`XIAOMI_API_KEY`、`AI_ACCESS_PASSWORD` 和随机生成的 `AI_SESSION_SECRET`，再通过 Docker Compose 启动。标准 API 使用 `https://api.xiaomimimo.com/v1` 与 `sk-...` Key；Token Plan 使用 `https://token-plan-cn.xiaomimimo.com/v1` 与 `tp-...` Key。后端会在 BaseURL 后拼接 `/chat/completions`。`deploy/i.joysb.icu.conf` 将同域 `/api/ai/*` 请求转发给服务端。不要将真实环境文件提交到仓库。开发时可参考 `server/.env.example`；前端只保存短期会话令牌于当前标签页的 `sessionStorage`，密钥仅由服务端读取。
 
 ## 内容维护
 
