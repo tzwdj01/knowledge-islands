@@ -1,0 +1,11 @@
+services:
+  knowledge-islands-ai:
+    build: .
+    container_name: knowledge-islands-ai
+    restart: unless-stopped
+    env_file:
+      - /etc/knowledge-islands/ai.env
+    environment:
+      HOST: 127.0.0.1
+      PORT: 4178
+    network_mode: host

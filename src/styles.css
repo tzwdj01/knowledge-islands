@@ -93,3 +93,29 @@
 }
 @media(max-width:1050px){.badges-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.badges-grid{grid-template-columns:1fr}}
+
+.ai-settings-card{grid-column:1/-1;border-color:#ddd6fb;background:linear-gradient(135deg,#fff 55%,#f8f5ff)}
+.settings-icon.violet{background:#eee9ff;color:#7955c9}
+.ai-settings-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.ai-settings-heading h2{margin-bottom:8px}
+.ai-lock-button{white-space:nowrap}
+.ai-notice{display:flex;align-items:flex-start;gap:9px;margin:16px 0;padding:13px 15px;border-radius:14px;background:#f5f1ff;color:#615487;font-size:13px;line-height:1.6}
+.ai-notice svg{flex:0 0 auto;margin-top:1px}
+.ai-status-note,.ai-message{margin:13px 0 0;color:#728683;font-size:13px;line-height:1.6}
+.ai-ready{display:flex;align-items:center;gap:8px;color:#22866c;font-weight:800}
+.ai-unlock-form{max-width:520px;margin-top:18px}
+.ai-unlock-form label{display:block;margin-bottom:8px;color:#41615f;font-size:13px;font-weight:800}
+.ai-password-row{display:flex;gap:10px}
+.ai-password-row input{min-width:0;flex:1;border:1px solid #d8e4dd;border-radius:13px;padding:12px 14px;font:inherit;background:white}
+.ai-password-row .primary-button{white-space:nowrap}
+.ai-speech-tools{margin:17px 0;padding:17px;border:1px solid #e6e0fa;border-radius:17px;background:#fbfaff}
+.ai-speech-buttons{display:flex;gap:10px;flex-wrap:wrap}
+.ai-speech-caption{margin:10px 0 0;color:#7e8d89;font-size:12px;line-height:1.55}
+.ai-speech-locked{display:flex;gap:9px;align-items:center;margin:14px 0;padding:13px;border-radius:13px;background:#f7f6f3;color:#78837f;font-size:13px;line-height:1.5}
+.recording-button{background:#ca695e!important}
+.ai-speech-message{display:flex;gap:8px;align-items:center;margin:12px 0 0;color:#6a6d91;font-size:13px}
+.ai-transcript{margin-top:12px;padding:14px;border-radius:13px;background:#fff;border:1px solid #eee8fa}
+.ai-transcript strong{font-size:13px;color:#66538c}
+.ai-transcript p{margin:8px 0;color:#294f52;line-height:1.7}
+.ai-transcript small{color:#8b9893;line-height:1.5}
+@media(max-width:520px){.ai-password-row{align-items:stretch;flex-direction:column}.ai-password-row .primary-button{justify-content:center}.ai-settings-heading{align-items:flex-start;flex-direction:column}.ai-speech-buttons>*{flex:1;justify-content:center}}

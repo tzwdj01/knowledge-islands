@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, Eraser, Headphones, HelpCircle, Lightbulb, RotateCcw, Sparkles, Star } from 'lucide-react'
 import { fireConfetti } from './lib/confetti'
+import SpeechTools from './SpeechTools'
 import type { AutoVariant, Point, ProgressRecord } from './types'
 
 interface Props {
@@ -225,6 +226,7 @@ export default function Challenge({ point, record, onAuto, onSelf, onBack, onNex
         </> : task.mode === 'self' ? <>
           <div className="self-task-box"><span className="self-emoji">{task.kind === 'draw' ? '✏️' : task.kind === 'speak' ? '🎤' : '💡'}</span><div><strong>先来试一试</strong><p>{task.instruction}</p></div></div>
           <div className="knowledge-tip"><Lightbulb size={22} /><div><strong>今天的原创小练习</strong><p>{task.practice}</p></div></div>
+          {task.kind === 'speak' && <SpeechTools text={task.practice} />}
           {task.kind === 'draw' && <DrawPad />}
           {task.originalTextNeeded && <div className="book-note">📖 想练习教材原文？可以翻到 <strong>{point.source}</strong>。这里的任务先帮你练习相同的能力。</div>}
           {!showExample && <button type="button" className="reveal-button" onClick={() => setShowExample(true)}>{task.kind === 'speak' ? '🎤 我已经大声说过了' : task.kind === 'draw' ? '✏️ 我已经写好啦' : '💭 我先自己想好了'} <ArrowRight size={19} /></button>}

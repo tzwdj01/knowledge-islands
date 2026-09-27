@@ -37,6 +37,12 @@ npm run preview
 - 进度保存在本设备浏览器中。家长设置支持导出 JSON 备份、导入备份和清空全部进度。清除浏览器网站数据会删除本地记录；换设备前请先导出。
 - 指定课文的原文朗读、背诵保留教材页码，供有教材时对照；游戏中的练习可以独立使用。
 
+## AI 语音功能
+
+家长设置里的 AI 伴学实验室支持按需使用 MiMo 普通话识别和示范朗读。朗读任务会显示 AI 入口；录音仅在点击录制并结束后发送识别，结果作为练习参考，不会代替孩子自评或自动掌握判定。离线语音和玩法仍可单独工作。
+
+服务端配置见 `server/`。在服务器 `/etc/knowledge-islands/ai.env` 设置 `XIAOMI_API_KEY`、`AI_ACCESS_PASSWORD` 和随机生成的 `AI_SESSION_SECRET`，再通过 Docker Compose 启动；`deploy/i.joysb.icu.conf` 将同域 `/api/ai/*` 请求转发给服务端。不要将真实环境文件提交到仓库。开发时可复制 `server/.env.example` 到服务器配置目录；前端只保存短期会话令牌于当前标签页的 `sessionStorage`，密钥仅由服务端读取。
+
 ## 内容维护
 
 运行中的应用只加载 `src/data/catalog.json` 与 `public/audio/`，不会加载资料目录。目录下的题目由 `scripts/generate_catalog.py` 从合并后的 `knowledge_base.json` 生成，语音由 `scripts/generate_audio.py` 生成。调整生成脚本后重新生成内容，再运行数据校验、测试和构建。

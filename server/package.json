@@ -1,0 +1,11 @@
+{
+  "name": "knowledge-islands-ai-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
