@@ -1,0 +1,9 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+知识探险岛-部署包.zip
+*.tsbuildinfo
+.DS_Store
+.env*
+!.env.example
