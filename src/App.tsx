@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowLeft, ArrowRight, Award, BookOpen, Check, ChevronRight, CloudDownload, Compass, Download, Headphones, Home, Lightbulb, Map, Menu, Printer, RotateCcw, Settings, ShieldCheck, Sparkles, Star, TrendingUp, Upload, Volume2, VolumeX, X } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, Award, BookOpen, Check, ChevronRight, CloudDownload, Compass, Download, Headphones, Home, Lightbulb, Map, Menu, PawPrint, Printer, RotateCcw, Settings, ShieldCheck, Sparkles, Star, TrendingUp, Upload, Volume2, VolumeX, X } from 'lucide-react'
 import Challenge from './Challenge'
 import AiSettings from './AiSettings'
+import PetModal from './PetModal'
 import { catalog, lessonsById, pointsById, pointsForUnit, pointsForVolume, unitsById, volumesById } from './lib/data'
-import { clearMistake, freshState, getBadges, isDue, loadState, mistakePoints, pointStage, recommendation, recordAuto, recordSelf, saveState, totalStars, validateState, volumeStats } from './lib/progress'
+import { availableStars, buyBamboo, clearMistake, feedPet, freshState, getBadges, isDue, loadState, mistakePoints, pointStage, recommendation, recordAuto, recordSelf, saveState, totalStars, validateState, volumeStats } from './lib/progress'
 import type { GameState, Point, Volume, VolumeId } from './types'
 
 type View = 'home' | 'island' | 'unit' | 'challenge' | 'review' | 'progress' | 'settings'
@@ -67,6 +68,7 @@ export default function App() {
   const [mobileMenu, setMobileMenu] = useState(false)
   const [reviewTab, setReviewTab] = useState<'due' | 'mistakes'>('due')
   const [showEyeCare, setShowEyeCare] = useState(false)
+  const [showPetModal, setShowPetModal] = useState(false)
   const [printUnitId, setPrintUnitId] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
@@ -75,6 +77,24 @@ export default function App() {
   const dailyTasks = useMemo(() => recommendation(state), [state])
   const mistakes = useMemo(() => mistakePoints(state), [state])
   const badges = useMemo(() => getBadges(state), [state])
+  const learningSummary = useMemo(() => ({
+    counts: {
+      explored: catalog.points.filter((point) => pointStage(point, state) !== 'new').length,
+      mastered: catalog.points.filter((point) => pointStage(point, state) === 'mastered').length,
+      selfAssessed: catalog.points.filter((point) => pointStage(point, state) === 'confident').length,
+      needsPractice: mistakes.length,
+    },
+    items: [...mistakes]
+      .sort((left, right) => (state.records[right.id]?.wrongCount ?? 0) - (state.records[left.id]?.wrongCount ?? 0))
+      .slice(0, 25)
+      .map((point) => ({
+        name: point.name,
+        subject: volumesById.get(point.volumeId)?.subject ?? '',
+        wrongCount: state.records[point.id]?.wrongCount ?? 0,
+        correctDays: state.records[point.id]?.correctDays.length ?? 0,
+        stage: stageText(point, state),
+      })),
+  }), [state, mistakes])
   const currentPoint = currentPointId ? pointsById.get(currentPointId) : undefined
   const selectedUnit = selectedUnitId ? unitsById.get(selectedUnitId) : undefined
 
@@ -194,6 +214,7 @@ export default function App() {
     <main className="main-content">
       {view === 'home' && <div className="page-enter">
         <section className="hero"><div className="hero-copy"><span className="hero-kicker"><Sparkles size={17} /> 小小探险家，准备好了吗？</span><h1>把学习变成<br /><em>一场奇妙探险！</em></h1><p>跟着小岛伙伴，学语文、玩数学。每天完成几个小任务，慢慢发现自己的进步。</p><div className="hero-buttons"><button type="button" className="primary-button" onClick={() => startDaily()}><Compass size={20} /> 开始今天的探险 <ArrowRight size={19} /></button><button type="button" className="secondary-button" onClick={() => navigate('island')}>看看四座小岛</button></div><div className="hero-facts"><span><Check size={15} /> 每次约 5 个任务</span><span><Check size={15} /> 没有倒计时</span><span><Check size={15} /> 可以反复练习</span></div></div><div className="hero-art" aria-hidden="true"><span className="float-star star-a">✦</span><span className="float-star star-b">✧</span><span className="float-cloud cloud-a">☁</span><span className="float-cloud cloud-b">☁</span><div className="island-illustration"><div className="hill hill-back" /><div className="hill hill-front" /><div className="tree tree-left">🌳</div><div className="tree tree-right">🌴</div><div className="mascot"><span className="mascot-eye left" /><span className="mascot-eye right" /><span className="mascot-mouth" /></div><span className="island-flag">★</span></div><div className="hero-wave" /></div></section>
+        <section className="section pet-home-section"><button type="button" className="pet-home-card" onClick={() => setShowPetModal(true)}><span className="pet-home-avatar">🐼</span><span className="pet-home-copy"><strong>来看看探险伙伴花花</strong><small>一起玩一会儿，或用收集的星星换竹子。花花不会催你每天来。</small></span><span className="pet-home-stats"><span>Lv.{state.pet?.level ?? 1}</span><span>🎋 {state.pet?.bamboo ?? 2}</span></span><PawPrint size={22} /></button></section>
         <section className="section islands-section"><div className="section-heading"><div><span className="eyebrow">探索世界</span><h2>选择你的探险小岛</h2><p>想去哪里，就从哪里开始。每座岛都有不同的惊喜。</p></div><button type="button" className="section-link" onClick={() => navigate('island')}>查看完整地图 <ArrowRight size={17} /></button></div><div className="island-grid">{catalog.volumes.map((volume) => <VolumeCard key={volume.id} volume={volume} state={state} onClick={() => selectVolume(volume.id)} />)}</div></section>
         <section className="section daily-section"><div className="daily-panel"><div className="daily-copy"><span className="eyebrow">今日小路线</span><h2>准备好收集今天的星星了吗？</h2><p>先复习要记住的内容，再学一点新知识。答错也没关系，我们一起再试一次。</p><button type="button" className="primary-button" onClick={() => startDaily()}><Star size={19} /> 开始 5 个小任务</button></div><div className="daily-list"><div className="daily-list-head"><span>{activeTheme.icon} {activeTheme.place}</span><small>推荐路线</small></div>{dailyTasks.map((point, index) => <TaskRow key={point.id} point={point} state={state} index={index + 1} onClick={() => openTask(point.id, 'home')} />)}{dailyTasks.length === 0 && <p className="empty-copy">今天的路线已经走完啦！</p>}</div></div></section>
       </div>}
@@ -202,7 +223,7 @@ export default function App() {
 
       {view === 'unit' && selectedUnit && <div className="page-enter"><button type="button" className="back-link page-back" onClick={() => navigate('island')}><ArrowLeft size={19} /> 返回{activeTheme.place}</button><div className="unit-hero"><span className="eyebrow">{activeTheme.icon} {activeTheme.place} · 学习区域</span><h1>{selectedUnit.name}</h1><p>{selectedUnit.goal}</p><div className="unit-hero-meta"><span><BookOpen size={17} /> {selectedUnit.lessonIds.length} 课</span><span><Star size={17} /> {pointsForUnit(selectedUnit.id).length} 项任务</span><button type="button" className="unit-print-action" onClick={() => setPrintUnitId(selectedUnit.id)}><Printer size={16} /> 打印本单元练习单 (A4)</button></div></div><div className="lesson-list">{selectedUnit.lessonIds.map((id, index) => { const lesson = lessonsById.get(id)!; const points = lesson.pointIds.map((pointId) => pointsById.get(pointId)!); const done = points.filter((point) => pointStage(point, state) !== 'new').length; return <section key={id} className="lesson-card"><div className="lesson-head"><span className="lesson-number">{index + 1}</span><div><span className="card-kicker">第 {index + 1} 站 {lesson.page ? `· 教材 P${lesson.page}` : ''}</span><h2>{lesson.name}</h2></div><span className="lesson-count">{done}/{points.length} 已探索</span></div><div className="lesson-tasks">{points.map((point) => <TaskRow key={point.id} point={point} state={state} onClick={() => openTask(point.id, 'unit')} />)}</div></section> })}</div></div>}
 
-      {view === 'challenge' && currentPoint && <Challenge key={currentPoint.id} point={currentPoint} record={state.records[currentPoint.id]} onAuto={(correct) => setState((current) => recordAuto(current, currentPoint.id, correct))} onSelf={(rating) => setState((current) => recordSelf(current, currentPoint.id, rating))} onBack={() => navigate(backView)} onNext={nextTask} playAudio={playAudio} muted={state.muted} hasNext={queue.length > 0 && queueIndex + 1 < queue.length} />}
+      {view === 'challenge' && currentPoint && <Challenge key={currentPoint.id} point={currentPoint} record={state.records[currentPoint.id]} onAuto={(correct) => setState((current) => recordAuto(current, currentPoint.id, correct))} onSelf={(rating, earnedStars) => setState((current) => recordSelf(current, currentPoint.id, rating, undefined, earnedStars))} onBack={() => navigate(backView)} onNext={nextTask} playAudio={playAudio} muted={state.muted} hasNext={queue.length > 0 && queueIndex + 1 < queue.length} />}
 
       {view === 'review' && <div className="page-enter"><div className="page-heading"><div><span className="eyebrow">复习站</span><h1>让记忆更牢固 ✨</h1><p>学过的东西，隔几天再试一次，就会越来越熟练。</p></div><div className="round-illustration">🔁</div></div>
         <div className="review-tabs">
@@ -223,7 +244,7 @@ export default function App() {
         <div className="badges-section"><div className="section-heading"><div><span className="eyebrow">探险荣耀</span><h2>探险家成就勋章</h2><p>每一次突破，都能点亮一颗闪耀的勋章。</p></div><span className="badge-stat-pill"><Award size={16} /> 已解锁 {badges.filter(b => b.unlocked).length} / {badges.length}</span></div><div className="badges-grid">{badges.map((badge) => <div key={badge.id} className={`badge-card ${badge.unlocked ? 'unlocked' : 'locked'}`}><span className="badge-icon">{badge.icon}</span><div className="badge-info"><strong>{badge.name}</strong><p>{badge.desc}</p><span className="badge-progress">{badge.unlocked ? '✨ 已达成' : `进度: ${badge.progressText}`}</span></div></div>)}</div></div>
         <div className="progress-volumes"><div className="section-heading"><div><span className="eyebrow">小岛足迹</span><h2>四座小岛的进度</h2></div></div>{catalog.volumes.map((volume) => { const stats = volumeStats(state, volume.id); return <button type="button" className="volume-progress-row" key={volume.id} onClick={() => selectVolume(volume.id)}><span className="volume-progress-icon">{themes[volume.id].icon}</span><span className="volume-progress-info"><strong>{themes[volume.id].place}</strong><small>{volume.grade} · {volume.subject} · {stats.mastered} 项自动掌握 / {stats.confident} 项自评会了</small><span className="progress-track"><i style={{ width: `${stats.practiced / stats.total * 100}%` }} /></span></span><span className="volume-progress-count">{stats.practiced}/{stats.total}</span><ChevronRight size={20} /></button> })}</div></div>}
 
-      {view === 'settings' && <div className="page-enter settings-page"><div className="page-heading"><div><span className="eyebrow">家长设置</span><h1>把小岛照顾得更好</h1><p>学习数据只保存在当前设备，不需要账号。</p></div><div className="round-illustration">⚙️</div></div><div className="settings-grid"><AiSettings /><section className="settings-card"><div className="settings-icon mint"><Headphones size={26} /></div><h2>声音设置</h2><p>题目普通话语音已随游戏打包。孩子可以点“听题目”反复听。</p><button type="button" className="secondary-button" onClick={() => setState((current) => ({ ...current, muted: !current.muted }))}>{state.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}{state.muted ? '已静音，点击开启' : '声音已开启，点击静音'}</button></section><section className="settings-card"><div className="settings-icon yellow"><CloudDownload size={26} /></div><h2>离线使用</h2><p>首次在 HTTPS 网页打开后，等全部任务与语音下载完成，再将网页添加到主屏幕。</p><OfflineBadge status={offlineStatus} /><small>当前版本无需登录；在家长设置里可备份进度。</small></section><section className="settings-card"><div className="settings-icon blue"><ShieldCheck size={26} /></div><h2>进度备份</h2><p>换设备前先导出文件，再在新设备上导入。文件只由你保管。</p><div className="settings-buttons"><button type="button" className="secondary-button" onClick={exportProgress}><Download size={18} /> 导出进度</button><button type="button" className="secondary-button" onClick={() => importRef.current?.click()}><Upload size={18} /> 导入进度</button><input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(event) => void importProgress(event.target.files?.[0])} /></div></section><section className="settings-card"><div className="settings-icon peach"><RotateCcw size={26} /></div><h2>重新开始</h2><p>清空这个设备上的学习记录。建议先导出备份。</p><button type="button" className="danger-button" onClick={resetProgress}>清空全部进度</button></section></div></div>}
+      {view === 'settings' && <div className="page-enter settings-page"><div className="page-heading"><div><span className="eyebrow">家长设置</span><h1>把小岛照顾得更好</h1><p>学习数据只保存在当前设备，不需要账号。</p></div><div className="round-illustration">⚙️</div></div><div className="settings-grid"><AiSettings learningSummary={learningSummary} /><section className="settings-card"><div className="settings-icon mint"><Headphones size={26} /></div><h2>声音设置</h2><p>题目普通话语音已随游戏打包。孩子可以点“听题目”反复听；解锁 AI 后可试听角色伴读。</p><button type="button" className="secondary-button" onClick={() => setState((current) => ({ ...current, muted: !current.muted }))}>{state.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}{state.muted ? '已静音，点击开启' : '声音已开启，点击静音'}</button></section><section className="settings-card"><div className="settings-icon yellow"><CloudDownload size={26} /></div><h2>离线使用</h2><p>首次在 HTTPS 网页打开后，等全部任务与语音下载完成，再将网页添加到主屏幕。</p><OfflineBadge status={offlineStatus} /><small>核心题目、进度和打包语音可离线使用；AI 角色音色需联网。</small></section><section className="settings-card"><div className="settings-icon blue"><ShieldCheck size={26} /></div><h2>进度备份</h2><p>换设备前先导出文件，再在新设备上导入。文件只由你保管。</p><div className="settings-buttons"><button type="button" className="secondary-button" onClick={exportProgress}><Download size={18} /> 导出进度</button><button type="button" className="secondary-button" onClick={() => importRef.current?.click()}><Upload size={18} /> 导入进度</button><input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(event) => void importProgress(event.target.files?.[0])} /></div></section><section className="settings-card"><div className="settings-icon peach"><RotateCcw size={26} /></div><h2>重新开始</h2><p>清空这个设备上的学习记录。建议先导出备份。</p><button type="button" className="danger-button" onClick={resetProgress}>清空全部进度</button></section></div></div>}
     </main>
     {showEyeCare && (
       <div className="modal-backdrop">
@@ -300,6 +321,7 @@ export default function App() {
         </div>
       )
     })()}
+    {showPetModal && <PetModal pet={state.pet ?? { level: 1, experience: 0, bamboo: 2, fedCount: 0 }} availableStars={availableStars(state)} onFeed={() => { setState((current) => feedPet(current).state); return (state.pet?.experience ?? 0) >= 75 }} onBuyBamboo={(count) => setState((current) => buyBamboo(current, count))} onClose={() => setShowPetModal(false)} />}
     {storageWarning && <div className="storage-warning">浏览器没有保存进度。请检查是否在无痕模式，或设备存储是否已满。</div>}
     {notice && <div className="toast" role="status">{notice}</div>}
     <footer className="site-footer"><span>✦ 知识探险岛</span><span>每一次尝试，都值得一颗星。</span><button type="button" onClick={() => navigate('settings')}>家长设置 <Settings size={15} /></button></footer>

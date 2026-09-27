@@ -96,6 +96,15 @@ export interface ProgressRecord {
   selfRating?: 'practiced' | 'confident'
   stars: number
   starDays: string[]
+  /** Highest star reward earned for each day; supports retrying without stacking stars. */
+  starAwardsByDay?: Record<string, number>
+}
+
+export interface PetState {
+  level: number
+  experience: number
+  bamboo: number
+  fedCount: number
 }
 
 export interface GameState {
@@ -103,6 +112,9 @@ export interface GameState {
   activeVolume: VolumeId
   muted: boolean
   records: Record<string, ProgressRecord>
+  /** Cumulative stars remain in records; this is the amount exchanged in the shop. */
+  spentStars?: number
+  pet?: PetState
 }
 
 export interface Badge {

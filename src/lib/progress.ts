@@ -17,7 +17,14 @@ export function addDays(day: string, count: number): string {
 }
 
 export function freshState(): GameState {
-  return { version: 1, activeVolume: 'YW1', muted: false, records: {} }
+  return {
+    version: 1,
+    activeVolume: 'YW1',
+    muted: false,
+    records: {},
+    spentStars: 0,
+    pet: { level: 1, experience: 0, bamboo: 2, fedCount: 0 },
+  }
 }
 
 export function validateState(value: unknown): GameState | null {
@@ -31,15 +38,32 @@ export function validateState(value: unknown): GameState | null {
     if (!Array.isArray(record.correctDays) || !Array.isArray(record.selfDays) || !Array.isArray(record.starDays) || !Number.isInteger(record.lastVariant) || !Number.isInteger(record.wrongCount) || !Number.isInteger(record.stars)) return null
     if (![...record.correctDays, ...record.selfDays, ...record.starDays].every((day) => /^\d{4}-\d{2}-\d{2}$/.test(day))) return null
     if ([record.correctDays, record.selfDays, record.starDays].some((days) => new Set(days).size !== days.length)) return null
-    if (record.lastVariant < 0 || record.wrongCount < 0 || record.stars < 0 || record.stars !== record.starDays.length || record.correctDays.length > 3) return null
+    if (record.lastVariant < 0 || record.wrongCount < 0 || record.stars < record.starDays.length || record.correctDays.length > 3) return null
     if (record.nextDue && !/^\d{4}-\d{2}-\d{2}$/.test(record.nextDue)) return null
     if (record.lastAttemptDay && !/^\d{4}-\d{2}-\d{2}$/.test(record.lastAttemptDay)) return null
     if (record.selfRating && !['practiced', 'confident'].includes(record.selfRating)) return null
     if (pointsById.get(id)?.task.mode === 'auto' && (record.selfDays.length || record.selfRating)) return null
     if (pointsById.get(id)?.task.mode === 'self' && record.correctDays.length) return null
-    records[id] = record
+    const awardMap = record.starAwardsByDay && typeof record.starAwardsByDay === 'object' && !Array.isArray(record.starAwardsByDay)
+      ? record.starAwardsByDay
+      : Object.fromEntries(record.starDays.map((day) => [day, 1]))
+    if (Object.keys(awardMap).some((day) => !/^\d{4}-\d{2}-\d{2}$/.test(day) || !record.starDays.includes(day))) return null
+    if (record.starDays.some((day) => !Number.isInteger(awardMap[day]) || awardMap[day] < 1 || awardMap[day] > 3)) return null
+    if (Object.values(awardMap).reduce((sum, count) => sum + count, 0) !== record.stars) return null
+    records[id] = { ...record, starAwardsByDay: awardMap }
   }
-  return { version: 1, activeVolume: state.activeVolume as VolumeId, muted: state.muted, records }
+  const earnedStars = Object.values(records).reduce((sum, record) => sum + record.stars, 0)
+  const spentStars = Number.isInteger(state.spentStars) && (state.spentStars ?? 0) >= 0 && (state.spentStars ?? 0) <= earnedStars
+    ? state.spentStars ?? 0
+    : 0
+  const rawPet = state.pet
+  const pet = rawPet && typeof rawPet === 'object' ? {
+    level: Number.isInteger(rawPet.level) && rawPet.level >= 1 ? rawPet.level : 1,
+    experience: Number.isInteger(rawPet.experience) && rawPet.experience >= 0 && rawPet.experience < 100 ? rawPet.experience : 0,
+    bamboo: Number.isInteger(rawPet.bamboo) && rawPet.bamboo >= 0 ? rawPet.bamboo : 2,
+    fedCount: Number.isInteger(rawPet.fedCount) && rawPet.fedCount >= 0 ? rawPet.fedCount : 0,
+  } : { level: 1, experience: 0, bamboo: 2, fedCount: 0 }
+  return { version: 1, activeVolume: state.activeVolume as VolumeId, muted: state.muted, records, spentStars, pet }
 }
 
 export function loadState(): GameState {
@@ -61,14 +85,19 @@ export function saveState(state: GameState): boolean {
 }
 
 function emptyRecord(): ProgressRecord {
-  return { correctDays: [], selfDays: [], lastVariant: 0, wrongCount: 0, stars: 0, starDays: [] }
+  return { correctDays: [], selfDays: [], lastVariant: 0, wrongCount: 0, stars: 0, starDays: [], starAwardsByDay: {} }
 }
 
-function awardStar(record: ProgressRecord, day: string): void {
+function awardStar(record: ProgressRecord, day: string, count = 1): void {
+  const awards = { ...(record.starAwardsByDay ?? Object.fromEntries(record.starDays.map((earnedDay) => [earnedDay, 1]))) }
+  const previous = awards[day] ?? 0
+  const next = Math.max(previous, Math.max(1, Math.min(3, Math.floor(count))))
   if (!record.starDays.includes(day)) {
     record.starDays.push(day)
-    record.stars += 1
   }
+  record.stars += next - previous
+  awards[day] = next
+  record.starAwardsByDay = awards
 }
 
 export function recordAuto(state: GameState, id: string, correct: boolean, day = todayKey()): GameState {
@@ -78,6 +107,7 @@ export function recordAuto(state: GameState, id: string, correct: boolean, day =
   const record = { ...(records[id] ?? emptyRecord()) }
   record.correctDays = [...record.correctDays]
   record.starDays = [...record.starDays]
+  record.starAwardsByDay = { ...(record.starAwardsByDay ?? {}) }
   awardStar(record, day)
   record.lastAttemptDay = day
   if (correct) {
@@ -94,15 +124,16 @@ export function recordAuto(state: GameState, id: string, correct: boolean, day =
   return { ...state, records }
 }
 
-export function recordSelf(state: GameState, id: string, rating: 'practiced' | 'confident', day = todayKey()): GameState {
+export function recordSelf(state: GameState, id: string, rating: 'practiced' | 'confident', day = todayKey(), earnedStars = 1): GameState {
   const point = pointsById.get(id)
   if (!point || point.task.mode !== 'self') return state
   const records = { ...state.records }
   const record = { ...(records[id] ?? emptyRecord()) }
   record.selfDays = [...record.selfDays]
   record.starDays = [...record.starDays]
+  record.starAwardsByDay = { ...(record.starAwardsByDay ?? {}) }
   if (!record.selfDays.includes(day)) record.selfDays.push(day)
-  awardStar(record, day)
+  awardStar(record, day, earnedStars)
   record.selfRating = rating
   record.lastAttemptDay = day
   record.nextDue = addDays(day, rating === 'confident' ? 3 : 1)
@@ -157,6 +188,41 @@ export function volumeStats(state: GameState, volumeId: VolumeId) {
 
 export function totalStars(state: GameState): number {
   return Object.values(state.records).reduce((sum, record) => sum + record.stars, 0)
+}
+
+export function availableStars(state: GameState): number {
+  return Math.max(0, totalStars(state) - (state.spentStars ?? 0))
+}
+
+export function buyBamboo(state: GameState, count: 1 | 3): GameState {
+  const cost = count === 3 ? 5 : 2
+  if (availableStars(state) < cost) return state
+  const pet = state.pet ?? { level: 1, experience: 0, bamboo: 2, fedCount: 0 }
+  return {
+    ...state,
+    spentStars: (state.spentStars ?? 0) + cost,
+    pet: { ...pet, bamboo: pet.bamboo + count },
+  }
+}
+
+export function feedPet(state: GameState): { state: GameState; leveledUp: boolean } {
+  const pet = state.pet ?? { level: 1, experience: 0, bamboo: 2, fedCount: 0 }
+  if (pet.bamboo < 1) return { state, leveledUp: false }
+  const experience = pet.experience + 25
+  const leveledUp = experience >= 100
+  return {
+    state: {
+      ...state,
+      pet: {
+        ...pet,
+        bamboo: pet.bamboo - 1,
+        fedCount: pet.fedCount + 1,
+        level: pet.level + (leveledUp ? 1 : 0),
+        experience: leveledUp ? experience - 100 : experience,
+      },
+    },
+    leveledUp,
+  }
 }
 
 export function mistakePoints(state: GameState, volumeId?: VolumeId): Point[] {

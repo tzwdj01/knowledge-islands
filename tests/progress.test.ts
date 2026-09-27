@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { catalog, pointsById, pointsForVolume } from '../src/lib/data'
-import { addDays, clearMistake, freshState, getBadges, isDue, mistakePoints, pointStage, recommendation, recordAuto, recordSelf, validateState } from '../src/lib/progress'
+import { addDays, availableStars, buyBamboo, clearMistake, feedPet, freshState, getBadges, isDue, mistakePoints, pointStage, recommendation, recordAuto, recordSelf, validateState } from '../src/lib/progress'
 
 describe('knowledge catalog', () => {
   it('has a playable task for every merged knowledge point', () => {
@@ -87,6 +87,43 @@ describe('progress', () => {
   it('round-trips a local progress backup', () => {
     const original = recordSelf(freshState(), 'YW1-U0-L1-KP01', 'confident', '2026-09-27')
     expect(validateState(JSON.parse(JSON.stringify(original)))).toEqual(original)
+  })
+
+  it('adds a speech star bonus once per day without turning it into mastery', () => {
+    const selfId = 'YW1-U0-L1-KP01'
+    let state = recordSelf(freshState(), selfId, 'practiced', '2026-09-01', 3)
+    state = recordSelf(state, selfId, 'practiced', '2026-09-01', 2)
+    expect(state.records[selfId].stars).toBe(3)
+    expect(state.records[selfId].starDays).toEqual(['2026-09-01'])
+    expect(pointStage(pointsById.get(selfId)!, state)).toBe('practiced')
+    state = recordSelf(state, selfId, 'confident', '2026-09-02', 2)
+    expect(state.records[selfId].stars).toBe(5)
+    expect(validateState(JSON.parse(JSON.stringify(state)))).toEqual(state)
+  })
+
+  it('spends available stars on bamboo and grows the companion without decay', () => {
+    let state = freshState()
+    const selfId = 'YW1-U0-L1-KP01'
+    state = recordSelf(state, selfId, 'practiced', '2026-09-01', 3)
+    state = recordSelf(state, selfId, 'practiced', '2026-09-02', 3)
+    expect(availableStars(state)).toBe(6)
+    state = buyBamboo(state, 3)
+    expect(availableStars(state)).toBe(1)
+    expect(state.pet?.bamboo).toBe(5)
+    for (let index = 0; index < 4; index++) state = feedPet(state).state
+    expect(state.pet?.level).toBe(2)
+    expect(state.pet?.fedCount).toBe(4)
+    expect(state.pet?.bamboo).toBe(1)
+  })
+
+  it('imports older version-one backups with default companion fields', () => {
+    const state = recordAuto(freshState(), id, true, '2026-09-01')
+    const oldRecord = { ...state.records[id] }
+    delete oldRecord.starAwardsByDay
+    const migrated = validateState({ version: 1, activeVolume: 'YW1', muted: false, records: { [id]: oldRecord } })
+    expect(migrated?.pet?.bamboo).toBe(2)
+    expect(migrated?.spentStars).toBe(0)
+    expect(migrated?.records[id].starAwardsByDay).toEqual({ '2026-09-01': 1 })
   })
 
   it('tracks mistakes and allows clearing them', () => {

@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, Eraser, Headphones, HelpCircle, Lightbulb, RotateCcw, Sparkles, Star } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bot, Check, Eraser, Headphones, HelpCircle, Lightbulb, RotateCcw, Sparkles, Star, Volume2 } from 'lucide-react'
 import { fireConfetti } from './lib/confetti'
 import SpeechTools from './SpeechTools'
+import { getAiSession } from './lib/ai'
+import { getVoiceDescription, requestSocraticHint, synthesizeTaskSpeech, formatSpokenScript } from './lib/aiExperience'
 import type { AutoVariant, Point, ProgressRecord } from './types'
 
 interface Props {
   point: Point
   record?: ProgressRecord
   onAuto: (correct: boolean) => void
-  onSelf: (rating: 'practiced' | 'confident') => void
+  onSelf: (rating: 'practiced' | 'confident', earnedStars?: number) => void
   onBack: () => void
   onNext: () => void
   playAudio: (path: string) => void
@@ -172,9 +174,84 @@ export default function Challenge({ point, record, onAuto, onSelf, onBack, onNex
   const [showExample, setShowExample] = useState(false)
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | 'self' | null>(null)
   const [showHint, setShowHint] = useState(false)
+  const [aiHint, setAiHint] = useState('')
+  const [hintBusy, setHintBusy] = useState(false)
+  const [speechStars, setSpeechStars] = useState(1)
+  const [speaking, setSpeaking] = useState(false)
+  const liveAudio = useRef<HTMLAudioElement | null>(null)
+  const liveAudioUrl = useRef('')
+  const speechRequest = useRef(0)
   const task = point.task
   const variant = task.mode === 'auto' ? task.variants[variantIndex] : null
   const audio = variant?.audio ?? (task.mode === 'self' ? task.audio : '')
+
+  useEffect(() => () => {
+    speechRequest.current += 1
+    liveAudio.current?.pause()
+    if (liveAudioUrl.current) URL.revokeObjectURL(liveAudioUrl.current)
+  }, [])
+
+  async function handlePlayAudio() {
+    if (muted) return
+    if (speaking) {
+      speechRequest.current += 1
+      liveAudio.current?.pause()
+      liveAudio.current = null
+      if (liveAudioUrl.current) URL.revokeObjectURL(liveAudioUrl.current)
+      liveAudioUrl.current = ''
+      setSpeaking(false)
+      return
+    }
+    const spokenText = formatSpokenScript([point.name, task.instruction, task.mode === 'auto' ? variant?.prompt : task.practice].filter(Boolean).join('。'))
+    const requestId = ++speechRequest.current
+    setSpeaking(true)
+    try {
+      const blob = await synthesizeTaskSpeech(spokenText, getVoiceDescription())
+      if (requestId !== speechRequest.current) return
+      if (liveAudioUrl.current) URL.revokeObjectURL(liveAudioUrl.current)
+      liveAudioUrl.current = URL.createObjectURL(blob)
+      const audioElement = new Audio(liveAudioUrl.current)
+      liveAudio.current = audioElement
+      audioElement.onended = () => {
+        setSpeaking(false)
+        liveAudio.current = null
+        if (liveAudioUrl.current) URL.revokeObjectURL(liveAudioUrl.current)
+        liveAudioUrl.current = ''
+      }
+      audioElement.onerror = () => {
+        if (liveAudioUrl.current) URL.revokeObjectURL(liveAudioUrl.current)
+        liveAudioUrl.current = ''
+        setSpeaking(false)
+        liveAudio.current = null
+        playAudio(audio)
+      }
+      await audioElement.play()
+    } catch {
+      if (requestId === speechRequest.current) {
+        setSpeaking(false)
+        playAudio(audio)
+      }
+    }
+  }
+
+  async function askIslandBuddy() {
+    if (!variant || !getAiSession()) return
+    setHintBusy(true)
+    setAiHint('')
+    try {
+      const hint = await requestSocraticHint({
+        pointName: point.name,
+        prompt: variant.prompt,
+        hint: variant.hint,
+        wrongAnswer: selected || numeric || ordered.join('、') || Object.entries(matched).map(([left, right]) => `${left}→${right}`).join('、'),
+      })
+      setAiHint(hint)
+    } catch {
+      setAiHint(`我们一起想一想：${variant.hint}`)
+    } finally {
+      setHintBusy(false)
+    }
+  }
 
   function canSubmit() {
     if (!variant) return false
@@ -202,7 +279,7 @@ export default function Challenge({ point, record, onAuto, onSelf, onBack, onNex
   }
 
   function finishSelf(rating: 'practiced' | 'confident') {
-    onSelf(rating)
+    onSelf(rating, task.kind === 'speak' ? speechStars : 1)
     setFeedback('self')
     fireConfetti()
     playAudio('audio/ui-star.mp3')
@@ -213,12 +290,14 @@ export default function Challenge({ point, record, onAuto, onSelf, onBack, onNex
     <div className="challenge-layout">
       <section className="challenge-card">
         <div className="challenge-meta"><span className={`pill ${task.mode === 'auto' ? 'pill-mint' : 'pill-peach'}`}>{task.mode === 'auto' ? '🧩 自动判分' : '🌱 自己试一试'}</span><span className="tiny-label">{point.type} · {point.level}</span></div>
-        <div className="challenge-title-row"><div><p className="eyebrow">探险任务</p><h1>{point.name}</h1></div><button className="listen-button" type="button" onClick={() => playAudio(audio)} aria-label="播放题目语音" title={muted ? '当前已静音，请先在页面上方开启声音' : '听题目'}><Headphones size={24} /><span>听题目</span></button></div>
+        <div className="challenge-title-row"><div><p className="eyebrow">探险任务</p><h1>{point.name}</h1></div><button className={`listen-button ${speaking ? 'active-playing' : ''}`} type="button" onClick={() => void handlePlayAudio()} aria-label="播放题目语音" title={muted ? '当前已静音，请先在页面上方开启声音' : speaking ? '点击停止播放' : '听题目或播放已选择的角色声音'}>{speaking ? <Volume2 size={24} /> : <Headphones size={24} />}<span>{speaking ? '正在朗读…' : '听题目'}</span></button></div>
         {task.mode === 'auto' && <p className="challenge-instruction">{task.instruction}</p>}
         {task.mode === 'auto' && variant ? <>
           <div className="question-box"><span className="question-count">第 {variantIndex + 1} 种挑战</span><h2>{variant.prompt}</h2></div>
           <AnswerArea variant={variant} selected={selected} setSelected={setSelected} numeric={numeric} setNumeric={setNumeric} ordered={ordered} setOrdered={setOrdered} tileCount={tileCount} setTileCount={setTileCount} matched={matched} setMatched={setMatched} />
           {feedback === 'wrong' && <div className="feedback feedback-wrong"><HelpCircle size={21} /><div><strong>再试一次，你可以做到！</strong><p>{variant.hint}</p></div></div>}
+          {feedback !== 'correct' && getAiSession() && <button type="button" className="text-button ai-hint-action" onClick={() => void askIslandBuddy()} disabled={hintBusy}><Bot size={17} />{hintBusy ? '小岛伙伴在想办法…' : '问小岛伙伴一个启发'}</button>}
+          {aiHint && <div className="ai-hint-result" role="status"><strong>🤔 试着这样想</strong><p>{aiHint}</p></div>}
           {showHint && feedback !== 'correct' && <button type="button" className="text-button hint-again" onClick={() => setShowHint(!showHint)}><Lightbulb size={17} /> 收起提示</button>}
           {!showHint && feedback !== 'correct' && <button type="button" className="text-button hint-again" onClick={() => setShowHint(true)}><Lightbulb size={17} /> 给我一点提示</button>}
           {showHint && feedback !== 'wrong' && feedback !== 'correct' && <div className="mini-hint">{variant.hint}</div>}
@@ -226,7 +305,7 @@ export default function Challenge({ point, record, onAuto, onSelf, onBack, onNex
         </> : task.mode === 'self' ? <>
           <div className="self-task-box"><span className="self-emoji">{task.kind === 'draw' ? '✏️' : task.kind === 'speak' ? '🎤' : '💡'}</span><div><strong>先来试一试</strong><p>{task.instruction}</p></div></div>
           <div className="knowledge-tip"><Lightbulb size={22} /><div><strong>今天的原创小练习</strong><p>{task.practice}</p></div></div>
-          {task.kind === 'speak' && <SpeechTools text={task.practice} />}
+          {task.kind === 'speak' && <SpeechTools text={task.practice} onScore={setSpeechStars} />}
           {task.kind === 'draw' && <DrawPad />}
           {task.originalTextNeeded && <div className="book-note">📖 想练习教材原文？可以翻到 <strong>{point.source}</strong>。这里的任务先帮你练习相同的能力。</div>}
           {!showExample && <button type="button" className="reveal-button" onClick={() => setShowExample(true)}>{task.kind === 'speak' ? '🎤 我已经大声说过了' : task.kind === 'draw' ? '✏️ 我已经写好啦' : '💭 我先自己想好了'} <ArrowRight size={19} /></button>}

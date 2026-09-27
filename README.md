@@ -39,9 +39,13 @@ npm run preview
 
 ## AI 语音功能
 
-家长设置里的 AI 伴学实验室支持按需使用 MiMo 普通话识别和示范朗读。朗读任务会显示 AI 入口；录音仅在点击录制并结束后发送识别，结果作为练习参考，不会代替孩子自评或自动掌握判定。离线语音和玩法仍可单独工作。
+家长设置里的 AI 伴学实验室支持按需使用 MiMo 普通话识别、角色音色设计、错题启发和学情建议。题目伴读优先尝试已选声音，生成音频会在本设备缓存；网络不可用或音色设计不可用时回退到打包语音。录音只在孩子点击录制后才会发送识别，显示的是识别文字匹配参考分，不评判口音，也不会代替自评或自动掌握判定。朗读练习可按文字匹配度获得最多 3 颗努力星；家长报告只在点击生成后发送不含姓名的学习汇总。
 
-服务端配置见 `server/`。在服务器 `/etc/knowledge-islands/ai.env` 设置 `XIAOMI_BASE_URL`、`XIAOMI_API_KEY`、`AI_ACCESS_PASSWORD` 和随机生成的 `AI_SESSION_SECRET`，再通过 Docker Compose 启动。标准 API 使用 `https://api.xiaomimimo.com/v1` 与 `sk-...` Key；Token Plan 使用 `https://token-plan-cn.xiaomimimo.com/v1` 与 `tp-...` Key。后端会在 BaseURL 后拼接 `/chat/completions`。`deploy/i.joysb.icu.conf` 将同域 `/api/ai/*` 请求转发给服务端。不要将真实环境文件提交到仓库。开发时可参考 `server/.env.example`；前端只保存短期会话令牌于当前标签页的 `sessionStorage`，密钥仅由服务端读取。
+首页的熊猫花花可用努力星兑换竹子互动。宠物不随时间降低状态，不会因不学习而失去东西。已赚取星星继续计入成长勋章；兑换时只减少可用星星，不影响学习记录或勋章。
+
+服务端配置见 `server/`。在服务器 `/etc/knowledge-islands/ai.env` 设置 `XIAOMI_API_KEY`、`AI_ACCESS_PASSWORD` 和随机生成的 `AI_SESSION_SECRET`；可选用 `XIAOMI_BASE_URL` 覆盖 API 地址。标准 API 使用 `https://api.xiaomimimo.com/v1` 与 `sk-...` Key；Token Plan 使用 `https://token-plan-cn.xiaomimimo.com/v1` 与 `tp-...` Key。未指定 BaseURL 时，后端按 Key 前缀选择默认地址，并在其后拼接 `/chat/completions`。`deploy/i.joysb.icu.conf` 将同域 `/api/ai/*` 请求转发给服务端。不要将真实环境文件提交到仓库。开发时可参考 `server/.env.example`；前端只保存短期会话令牌于当前标签页的 `sessionStorage`，密钥仅由服务端读取。
+
+运行 `npm test` 检查学习排程、努力星、宠物兑换及语音文本工具；运行 `npm run check:data` 校验教材知识点目录。
 
 ## 内容维护
 
